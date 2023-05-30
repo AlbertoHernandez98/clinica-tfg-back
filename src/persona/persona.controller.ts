@@ -7,7 +7,7 @@ import { PersonaEntity } from './persona.entity';
 import { PersonaClinica } from './persona.interface';
 import { PersonaService } from './persona.service';
 
-@Controller('personas')
+@Controller('persona')
 export class PersonaController {
     constructor(private readonly personaService: PersonaService) { }
 
