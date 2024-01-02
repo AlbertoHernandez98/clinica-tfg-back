@@ -1,3 +1,5 @@
+import { PhotosModule } from './photos/photos.module';
+import { PhotosService } from './photos/photos.service';
 import { PersonaModule } from './persona/persona.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -6,9 +8,13 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
+import { AuthService } from './auth/auth.service';
+import { AuthModule } from './auth/auth.module';
+import { HistorialClinicoModule } from './historialclinico/historial-clinico.module';
 
 @Module({
   imports: [
+    PhotosModule,
     PersonaModule,
     TypeOrmModule.forRoot({
       "type": "mysql",
@@ -18,24 +24,17 @@ import { JwtModule } from '@nestjs/jwt';
       "password": "",
       "database": "test",
       "entities": [join(__dirname, '**', '*.entity.{ts,js}')],
-      "synchronize": true,
+      "synchronize": false,
       "autoLoadEntities": true,
 
     }),
-    PassportModule.register({
-      defaultStrategy: 'jwt',
-      property: 'user',
-      session: false,
-    }),
-    JwtModule.register({
-      secret: process.env.SECRETKEY, signOptions: {
-        expiresIn: process.env.EXPIRESIN,
-      },
-    })],
+    AuthModule,
+    HistorialClinicoModule
+  ],
   controllers: [
     AppController,
-  ], 
-  providers: [AppService],
-  // AuthService, JwtStrategy
+  ],
+  providers: [
+    AppService]
 })
 export class AppModule { }

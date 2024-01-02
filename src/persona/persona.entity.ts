@@ -7,25 +7,24 @@ export class PersonaEntity {
     @PrimaryGeneratedColumn()
     idPersona:number;
 
-    @Column({nullable: true})
+    @Column()
     dni: string;
 
-    @Column({nullable: true})
-    nombre: string;
-
-    @Column({nullable: true})
-    apellidos: string;
-
-    @Column({nullable: true})
+    @Column()
     telefono: string;
 
-    @Column({nullable: true})
-    contraseña: string;
+    @Column()
+    password: string;
 
-    @Column({nullable: true})
+    @Column()
     idRolNativo: number;
 
-    // @Column()
-    // fotoPerfil: File;
+    @Column()
+    username: string;
 
+    @Column()
+    email: string;
+
+    @Column()
+    domicilio: string;
 }

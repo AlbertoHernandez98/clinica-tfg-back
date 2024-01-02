@@ -11,19 +11,31 @@ import { PersonaService } from './persona.service';
 export class PersonaController {
     constructor(private readonly personaService: PersonaService) { }
 
+   
     @Get()
     async getAllPersonas(): Promise<PersonaEntity[]> {
         return await this.personaService.getAllPersonas();
-    }
+    } 
 
     @Post()
     async addPersona(@Body() persona: PersonaClinica): Promise<PersonaEntity> {
         return await this.personaService.addPersona(persona)
     }
 
-    @Put(':id')
-    async editarPersona(@Param() params, @Body() persona: PersonaClinica) {
-        return await this.personaService.editarPersona(params.id, persona)
+    @Put('/changeUser')
+    async editarPersona(@Body() requestBody) {
+        return await this.personaService.editarPersona(requestBody)
+    }
+
+    @Put('/changePassword')
+    async cambiarContrasena(@Body() requestBody) {
+        const { username, contrasena, newPassword } = requestBody;
+      try {
+        const personaActualizada = await this.personaService.cambiarContrasena(requestBody);
+        return { mensaje: 'Contraseña cambiada exitosamente', persona: personaActualizada };
+      } catch (error) {
+        throw new Error(error.message);
+      }
     }
 
     @Delete(':id')
