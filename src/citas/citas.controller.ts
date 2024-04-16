@@ -13,17 +13,22 @@ export class CitasController {
 
    
     @Get()
-    async getAllPersonas(): Promise<CitasEntity[]> {
+    async getAllCitas(): Promise<CitasEntity[]> {
         return await this.citasService.getAllCitas();
     }  
 
     @Post()
-    async addHistorial(@Body() historial: CitasClinica): Promise<CitasEntity> {
-        return await this.citasService.addCita(historial)
+    async addCita(@Body() requestBody: CitasClinica): Promise<CitasEntity> {
+        return await this.citasService.addCita(requestBody)
+    }
+
+    @Put('/changeCita')
+    async editarCita(@Body() requestBody) {
+        return await this.citasService.editarCita(requestBody)
     }
 
     @Delete(':id')
-    async deletePersona(@Param() params) {
+    async deleteCita(@Param() params) {
         return await this.citasService.deleteCita(params.id)
     }
 

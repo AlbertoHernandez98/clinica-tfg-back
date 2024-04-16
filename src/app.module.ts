@@ -13,6 +13,8 @@ import { AuthService } from './auth/auth.service';
 import { AuthModule } from './auth/auth.module';
 import { HistorialClinicoModule } from './historialclinico/historial-clinico.module';
 import { ServiciosModule } from './servicios/servicios.module';
+import { CitasModule } from './citas/citas.module';
+import { MedicoHasServicioModule } from './medico-has-servicio/medico-has-servicio.module';
 
 @Module({
   imports: [
@@ -31,7 +33,9 @@ import { ServiciosModule } from './servicios/servicios.module';
     }),
     AuthModule,
     HistorialClinicoModule,
-    ServiciosModule
+    ServiciosModule,
+    CitasModule,
+    MedicoHasServicioModule
   ],
   controllers: [AppController],
   providers: [AppService],

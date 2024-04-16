@@ -6,13 +6,7 @@ export class CitasEntity {
     idCita:number;
 
     @Column()
-    fecha: Date;
-
-    @Column()
     idServicio: number;
-
-    @Column()
-    historial: string;
 
     @Column()
     idCliente: number;
@@ -20,4 +14,9 @@ export class CitasEntity {
     @Column()
     idMedico: number;
 
+    @Column()
+    duracion: number;
+
+    @Column()
+    fechaInicio: Date;
 }

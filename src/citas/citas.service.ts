@@ -13,30 +13,49 @@ import { CitasClinica } from './citas.interface';
 export class CitasService {
   constructor(
     @InjectRepository(CitasEntity)
-    private CitasRepository: Repository<CitasEntity>,
+    private citasRepository: Repository<CitasEntity>,
   ) {}
 
 
-  async addCita(historial: CitasClinica): Promise<any> {
+  async addCita(cita: CitasClinica): Promise<any> {
     let newCita = new CitasEntity();
 
-    newCita.fecha = historial.fecha;
-    newCita.idCliente = historial.idCliente;
-    newCita.idMedico = historial.idMedico;
-    newCita.historial = historial.historial;
-    newCita.idServicio = historial.idServicio;
+    newCita.fechaInicio = cita.fechaInicio;
+    newCita.idCliente = cita.idCliente;
+    newCita.idMedico = cita.idMedico;
+    newCita.idServicio = cita.idServicio;
+    newCita.duracion = cita.duracion;
 
-    const item = await this.CitasRepository.save(newCita);
+    const item = await this.citasRepository.save(newCita);
 
     return item;
   }
 
   getAllCitas(): Promise<CitasEntity[]> {
-    return this.CitasRepository.find();
+    return this.citasRepository.find();
   }
 
+  async editarCita(requestBody) {
+    const { idCliente, idCita, idServicio, idMedico, duracion, fechaInicio, fechaFin } = requestBody;
+
+      const persona = await this.citasRepository.findOneBy({
+        idCliente: idCliente
+      });
+      
+      if(persona) {
+        persona.idCliente = idCliente;
+        persona.idCita = idCita;
+        persona.idMedico = idMedico;
+        persona.idServicio = idServicio;
+        persona.duracion = duracion;
+        persona.fechaInicio = fechaInicio;
+        await this.citasRepository.save(persona);
+      } else {
+        throw new Error('Las persona no ha sido encontrada, intenta de nuevo');
+      }
+  }
 
   async deleteCita(id: number): Promise<void> {
-    await this.CitasRepository.delete(id);
+    await this.citasRepository.delete(id);
   }
 }
