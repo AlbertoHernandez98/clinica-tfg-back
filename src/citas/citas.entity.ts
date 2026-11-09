@@ -1,22 +1,25 @@
-import { Column, Entity, PrimaryColumn } from "typeorm";
+import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
-@Entity('citas')
+@Entity('cita')
 export class CitasEntity {
-    @PrimaryColumn()
-    idCita:number;
+  @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
+  idCita: number;
 
-    @Column()
-    idServicio: number;
+  @Column({ type: 'date' })
+  fecha: string;
 
-    @Column()
-    idCliente: number;
+  @Column({ type: 'time' })
+  hora: string;
 
-    @Column()
-    idMedico: number;
+  @Column()
+  idServicio: number;
 
-    @Column()
-    duracion: number;
+  @Column()
+  idCliente: number;
 
-    @Column()
-    fechaInicio: Date;
+  @Column()
+  idMedico: number;
+
+  @Column()
+  duracion: number;
 }

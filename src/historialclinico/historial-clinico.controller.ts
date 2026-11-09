@@ -1,36 +1,24 @@
-/*
-https://docs.nestjs.com/controllers#controllers
-*/
-
-import { Controller, Get, Delete, Post, Put, Param, Body } from '@nestjs/common';
-import { HistorialClinicoEntity } from './historial-clinico.entity';
-import { HistorialClinicoClinica } from './historial-clinico.interface';
+import { Body, Controller, Get, Param, Post, Request, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { HistorialClinicoService } from './historial-clinico.service';
 
 @Controller('historialclinico')
+@UseGuards(AuthGuard('jwt'))
 export class HistorialClinicoController {
-    constructor(private readonly historialClinicoService: HistorialClinicoService) { }
+  constructor(private readonly historial: HistorialClinicoService) {}
 
-   
-    @Get()
-    async getAllPersonas(): Promise<HistorialClinicoEntity[]> {
-        return await this.historialClinicoService.getAllHistoriales();
-    }  
+  @Get('paciente/:id')
+  patient(@Request() req, @Param('id') id: string) {
+    return this.historial.patient(req.user, id);
+  }
 
-    @Post()
-    async addHistorial(@Body() historial: HistorialClinicoClinica): Promise<HistorialClinicoEntity> {
-        return await this.historialClinicoService.addHistorial(historial)
-    }
+  @Get('cita/:id')
+  appointment(@Request() req, @Param('id') id: string) {
+    return this.historial.appointment(req.user, id);
+  }
 
-    @Put('/changeUser')
-    async editarHistorial(@Body() requestBody) {
-        return await this.historialClinicoService.editarHistorial(requestBody)
-    }
-
-
-    @Delete(':id')
-    async deletePersona(@Param() params) {
-        return await this.historialClinicoService.deleteHistorial(params.id)
-    }
-
+  @Post()
+  add(@Request() req, @Body() body: { idCliente: unknown; idServicio: unknown; idCita?: unknown; comentarios: unknown }) {
+    return this.historial.add(req.user, body);
+  }
 }

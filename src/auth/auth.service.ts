@@ -2,8 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { compareSync } from 'bcrypt';
 
-import { PersonaService } from 'src/persona/persona.service';
-import { PersonaEntity } from 'src/persona/persona.entity';
+import { PersonaService } from '../persona/persona.service';
+import { PersonaEntity } from '../persona/persona.entity';
 
 @Injectable()
 export class AuthService {
@@ -12,8 +12,8 @@ export class AuthService {
         private readonly jwtService: JwtService,
     ) { }
 
-    async validateUser(username: string, password: string): Promise<PersonaEntity | null> {
-        const user = await this.personaService.findByUsername(username);
+    async validateUser(dni: string, password: string): Promise<PersonaEntity | null> {
+        const user = await this.personaService.findByDni(dni);
 
         if (user && this.comparePasswords(password, user.password)) {
             return user;
@@ -27,9 +27,14 @@ export class AuthService {
     }
 
     async login(persona: PersonaEntity) {
-        const payload = { username: persona.username, password: persona.password };
+        const payload = { sub: persona.idPersona };
         return {
             access_token: this.jwtService.sign(payload),
+            user: { idPersona: persona.idPersona, dni: persona.dni, nombre: persona.nombre, idRolNativo: persona.idRolNativo },
         };
+    }
+
+    async findById(id: number): Promise<PersonaEntity | null> {
+        return this.personaService.getPersonaById(id);
     }
 }

@@ -1,35 +1,49 @@
-/*
-https://docs.nestjs.com/controllers#controllers
-*/
-
-import { Controller, Get, Delete, Post, Put, Param, Body } from '@nestjs/common';
-import { CitasEntity } from './citas.entity';
-import { CitasClinica } from './citas.interface';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, Request, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { CitasService } from './citas.service';
 
-@Controller('citas')
+@Controller()
+@UseGuards(AuthGuard('jwt'))
 export class CitasController {
-    constructor(private readonly citasService: CitasService) { }
+  constructor(private readonly citas: CitasService) {}
 
-   
-    @Get()
-    async getAllCitas(): Promise<CitasEntity[]> {
-        return await this.citasService.getAllCitas();
-    }  
+  @Get('citas')
+  list(@Request() req) { return this.citas.list(req.user); }
 
-    @Post()
-    async addCita(@Body() requestBody: CitasClinica): Promise<CitasEntity> {
-        return await this.citasService.addCita(requestBody)
-    }
+  @Get('citas/mi-agenda')
+  agenda(@Request() req, @Query('inicio') inicio: string) { return this.citas.agenda(req.user, inicio); }
 
-    @Put('/changeCita')
-    async editarCita(@Body() requestBody) {
-        return await this.citasService.editarCita(requestBody)
-    }
+  @Get('citas/mis-citas')
+  myAppointments(@Request() req) { return this.citas.myAppointments(req.user); }
 
-    @Delete(':id')
-    async deleteCita(@Param() params) {
-        return await this.citasService.deleteCita(params.id)
-    }
+  @Get('citas/agenda')
+  managedAgenda(@Request() req, @Query('inicio') inicio: string, @Query('idMedico') idMedico: string) {
+    return this.citas.managedAgenda(req.user, inicio, idMedico);
+  }
 
+  @Post('citas')
+  create(@Request() req, @Body() body) { return this.citas.save(req.user, body); }
+
+  @Post('citas/disponibilidad')
+  check(@Request() req, @Body() body) { return this.citas.check(req.user, body); }
+
+  @Post('citas/huecos')
+  slots(@Request() req, @Body() body) { return this.citas.slots(req.user, body); }
+
+  @Put('citas/:id')
+  update(@Request() req, @Param('id') id: string, @Body() body) { return this.citas.save(req.user, body, Number(id)); }
+
+  @Delete('citas/:id')
+  delete(@Request() req, @Param('id') id: string) { return this.citas.delete(req.user, Number(id)); }
+
+  @Get('medicos/:id/vacaciones')
+  holidays(@Request() req, @Param('id') id: string) { return this.citas.holidays(req.user, Number(id)); }
+
+  @Post('medicos/:id/vacaciones')
+  addHoliday(@Request() req, @Param('id') id: string, @Body() body) { return this.citas.addHoliday(req.user, Number(id), body); }
+
+  @Delete('medicos/:id/vacaciones/:holidayId')
+  deleteHoliday(@Request() req, @Param('id') id: string, @Param('holidayId') holiday: string) {
+    return this.citas.deleteHoliday(req.user, Number(id), Number(holiday));
+  }
 }

@@ -1,10 +1,11 @@
 export interface PersonaClinica{
-    idPersona: number,
-    username: string,
+    idPersona?: number,
     password: string,
     idRolNativo: number,
-    telefono: string,
+    telefono: number,
+    email?: string | null,
     dni: string,
-    email:string,
-    domicilio:string,
+    nombre: string,
+    apellidos: string,
+    fotoPerfil?: string,
 }

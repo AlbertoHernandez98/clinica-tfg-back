@@ -4,27 +4,30 @@ import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
 @Entity('persona')
 export class PersonaEntity {
 
-    @PrimaryGeneratedColumn()
-    idPersona:number;
+    @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
+    idPersona: number;
 
     @Column()
     dni: string;
 
     @Column()
-    telefono: string;
+    nombre: string;
 
     @Column()
+    apellidos: string;
+
+    @Column({ nullable: true })
+    telefono: number;
+
+    @Column({ type: 'varchar', length: 254, nullable: true })
+    email: string | null;
+
+    @Column({ name: 'password', nullable: true })
     password: string;
 
     @Column()
     idRolNativo: number;
 
-    @Column()
-    username: string;
-
-    @Column()
-    email: string;
-
-    @Column()
-    domicilio: string;
+    @Column({ nullable: true })
+    fotoPerfil: string;
 }

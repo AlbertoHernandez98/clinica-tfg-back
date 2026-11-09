@@ -2,12 +2,13 @@
 https://docs.nestjs.com/providers#services
 */
 
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PersonaEntity } from './persona.entity';
 import { PersonaClinica } from './persona.interface';
-// import { JwtPayload } from 'src/jwt/jwt.strategy';
+
+type Actor = { idPersona: number; idRolNativo: number };
 
 @Injectable()
 export class PersonaService {
@@ -16,28 +17,33 @@ export class PersonaService {
     private personaRepository: Repository<PersonaEntity>,
   ) {}
 
-  async findByUsername(username: string): Promise<PersonaEntity | undefined> {
-    return this.personaRepository.findOne({ where: { username } });
+  async findByDni(dni: string): Promise<PersonaEntity | undefined> {
+    return this.personaRepository.findOne({ where: { dni } });
   }
 
   async addPersona(persona: PersonaClinica): Promise<any> {
+    this.validateEmail(persona.email);
+    if (await this.findByDni(persona.dni)) {
+      throw new ConflictException('Ya existe una persona con ese documento');
+    }
     let newPersona = new PersonaEntity();
-    newPersona.username = persona.username;
-    newPersona.password = persona.password;
     newPersona.dni = persona.dni;
-    // newPersona.fotoPerfil = persona.fotoPerfil;
-    newPersona.idPersona = persona.idPersona;
+    newPersona.password = persona.password;
     newPersona.idRolNativo = persona.idRolNativo;
     newPersona.telefono = persona.telefono;
-    newPersona.domicilio = persona.domicilio;
-    newPersona.email = persona.email;
+    newPersona.email = persona.email ? persona.email.trim() : null;
+    newPersona.nombre = persona.nombre;
+    newPersona.apellidos = persona.apellidos;
+    newPersona.fotoPerfil = persona.fotoPerfil;
 
     const item = await this.personaRepository.save(newPersona);
 
     return item;
   }
 
-  getAllPersonas(): Promise<PersonaEntity[]> {
+  getAllPersonas(actor: Actor): Promise<PersonaEntity[]> {
+    if (actor.idRolNativo === 4) return this.personaRepository.find({ where: { idPersona: actor.idPersona } });
+    if (![1, 2, 3].includes(actor.idRolNativo)) throw new ForbiddenException();
     return this.personaRepository.find();
   }
 
@@ -45,47 +51,62 @@ export class PersonaService {
     return this.personaRepository.findOneBy({ idPersona });
   }
 
-  async editarPersona(requestBody) {
-    const { oldUsername, username, password, email, idRolNativo, dni, telefono, domicilio } = requestBody;
-
-      const persona = await this.personaRepository.findOneBy({
-        username: oldUsername,
-      });
+  async editarPersona(requestBody, actor: Actor) {
+    const { oldDni, dni, password, nombre, apellidos, idRolNativo, telefono, email } = requestBody;
+    this.validateEmail(email);
+    const newRole = Number(idRolNativo);
+    if (![1, 2, 3, 4].includes(newRole)) throw new BadRequestException('Rol inválido');
+    return this.personaRepository.manager.transaction(async manager => {
+      const repo = manager.getRepository(PersonaEntity);
+      const persona = await repo.findOne({ where: { dni: oldDni }, lock: { mode: 'pessimistic_write' } });
       
       if(persona) {
-        persona.username = username;
-        persona.password = password;
-        persona.email = email;
-        persona.idRolNativo = idRolNativo;
+        const self = persona.idPersona === actor.idPersona;
+        const allowed = actor.idRolNativo === 1 ||
+          (self && persona.idRolNativo === actor.idRolNativo && newRole === actor.idRolNativo && !password) ||
+          (actor.idRolNativo === 2 && persona.idRolNativo === 4 && newRole === 4) ||
+          (actor.idRolNativo === 3 && [2, 4].includes(persona.idRolNativo) && [2, 4].includes(newRole));
+        if (!allowed) throw new ForbiddenException();
+        if (dni !== oldDni && await repo.findOne({ where: { dni } })) {
+          throw new ConflictException('Ya existe una persona con ese documento');
+        }
         persona.dni = dni;
+        if (password !== undefined && password !== '') {
+          persona.password = password;
+        }
+        persona.nombre = nombre;
+        persona.apellidos = apellidos;
+        persona.idRolNativo = newRole;
         persona.telefono = telefono;
-        persona.domicilio = domicilio;
-        await this.personaRepository.save(persona);
+        if (email !== undefined) {
+          persona.email = email ? email.trim() : null;
+        }
+        await repo.save(persona);
       } else {
-        throw new Error('Las persona no ha sido encontrada, intenta de nuevo');
+        throw new NotFoundException('La persona no ha sido encontrada');
       }
-
+    });
   }
 
   async cambiarContrasena(requestBody) {
     try {
-      const { username, password, newPassword } = requestBody;
+      const { dni, password, newPassword } = requestBody;
 
       const persona = await this.personaRepository.findOneBy({
-        username: username,
+        dni: dni,
       });
 
       if (!persona) {
         throw new Error('No se encontró la persona');
       }
 
-      const compared = this.comparePasswords(password, newPassword);
+      const compared = this.comparePasswords(password, persona.password);
 
-      if (!compared) {
+      if (compared) {
         persona.password = newPassword;
         await this.personaRepository.save(persona);
       } else {
-        throw new Error('Las contraseñas coinciden, intenta de nuevo');
+        throw new Error('La contraseña actual es incorrecta');
       }
       return persona;
     } catch (error) {
@@ -97,7 +118,27 @@ export class PersonaService {
     return password === hashedPassword;
   }
 
-  async deletePersona(id: number): Promise<void> {
-    await this.personaRepository.delete(id);
+  private validateEmail(email: unknown): void {
+    if (email === undefined || email === null || email === '') {
+      return;
+    }
+    if (typeof email !== 'string' || email.trim().length > 254 ||
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      throw new BadRequestException('El correo electrónico no es válido');
+    }
+  }
+
+  async deletePersona(id: number, actor: Actor): Promise<void> {
+    const personId = Number(id);
+    if (!Number.isSafeInteger(personId) || personId < 0) throw new BadRequestException('Identificador inválido');
+    await this.personaRepository.manager.transaction(async manager => {
+      const repo = manager.getRepository(PersonaEntity);
+      const person = await repo.findOne({ where: { idPersona: personId }, lock: { mode: 'pessimistic_write' } });
+      if (!person) throw new NotFoundException('La persona no ha sido encontrada');
+      if (actor.idRolNativo !== 1 && !(actor.idRolNativo === 3 && [2, 4].includes(person.idRolNativo))) {
+        throw new ForbiddenException();
+      }
+      await repo.delete(personId);
+    });
   }
 }

@@ -12,7 +12,11 @@ async function bootstrap() {
   // Middleware para habilitar CORS
   expressApp.use((req, res, next) => {
     // Configura los encabezados CORS necesarios
-    res.header('Access-Control-Allow-Origin', 'http://localhost:4200');
+    const origin = req.headers.origin;
+    // Permite cualquier localhost en desarrollo
+    if (origin && origin.includes('localhost')) {
+      res.header('Access-Control-Allow-Origin', origin);
+    }
     res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
@@ -27,7 +31,7 @@ async function bootstrap() {
 
 
   // Inicia el servidor
-  await app.listen(8080);
+  await app.listen(3000);
 }
 
 bootstrap();
