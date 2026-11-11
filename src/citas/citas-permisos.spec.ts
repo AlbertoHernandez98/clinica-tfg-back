@@ -14,7 +14,7 @@ describe('Appointment management permissions', () => {
       if (sql.includes('SELECT idCita, idMedico FROM cita WHERE idCita')) return [{ idCita: 7, idMedico: 2 }];
       if (sql.includes('FOR UPDATE')) return [{ idRolNativo: 2 }];
       if (sql.includes('FROM cita') || sql.includes('vacaciones_medico')) return [];
-      if (sql.includes('FROM servicio')) return [{ idServicio: 1 }];
+      if (sql.includes('FROM servicio') || sql.includes('FROM medico_has_servicio')) return [{ idServicio: 1 }];
       if (sql.includes('FROM persona')) return [{ idPersona: 4, idRolNativo: 4 }];
       return { affectedRows: 1 };
     });

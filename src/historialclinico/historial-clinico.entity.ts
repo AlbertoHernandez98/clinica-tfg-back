@@ -25,4 +25,7 @@ export class HistorialClinicoEntity {
 
     @Column({ nullable: true })
     idCita: number | null;
+
+    @Column({ type: 'tinyint', default: 0 })
+    anulada: boolean;
 }

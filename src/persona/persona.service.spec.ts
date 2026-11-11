@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException } from '@nes
 import { Repository } from 'typeorm';
 import { PersonaEntity } from './persona.entity';
 import { PersonaService } from './persona.service';
+import { verifyPassword } from '../auth/password';
 
 describe('PersonaService', () => {
   const repository = { find: jest.fn(), findOne: jest.fn(), findOneBy: jest.fn(), save: jest.fn(), delete: jest.fn(), manager: { transaction: jest.fn() } };
@@ -23,6 +24,8 @@ describe('PersonaService', () => {
     });
     expect(repository.save.mock.calls[0][0].idPersona).toBeUndefined();
     expect(repository.save.mock.calls[0][0].email).toBe('ana@example.com');
+    expect(await verifyPassword('pass', repository.save.mock.calls[0][0].password)).toBe(true);
+    expect(repository.save.mock.calls[0][0].password).not.toBe('pass');
     expect(result.idPersona).toBe(5);
   });
 
@@ -41,6 +44,24 @@ describe('PersonaService', () => {
     await service.editarPersona({ oldDni: persona.dni, dni: persona.dni, nombre: 'Ana', apellidos: 'Pérez', telefono: 612345678, idRolNativo: 4 }, admin);
     expect(persona.password).toBe('existing');
     expect(repository.save).toHaveBeenCalledWith(persona);
+  });
+
+  it('hashes an administrator password change on another account', async () => {
+    const persona = { idPersona: 4, idRolNativo: 4, dni: 'T', password: 'legacy' };
+    repository.findOne.mockResolvedValue(persona);
+    await service.editarPersona({ oldDni: 'T', dni: 'T', idRolNativo: 4, password: 'new-password' }, admin);
+    expect(await verifyPassword('new-password', persona.password)).toBe(true);
+    expect(persona.password).not.toBe('new-password');
+  });
+
+  it('checks the old password and hashes a self-service password change', async () => {
+    const persona = { idPersona: 4, idRolNativo: 4, dni: 'T', password: 'legacy' };
+    repository.findOne.mockResolvedValue(persona);
+    await expect(service.cambiarContrasena({ dni: 'T', password: 'wrong', newPassword: 'new-password' }))
+      .rejects.toBeInstanceOf(ForbiddenException);
+    expect(repository.save).not.toHaveBeenCalled();
+    await service.cambiarContrasena({ dni: 'T', password: 'legacy', newPassword: 'new-password' });
+    expect(await verifyPassword('new-password', persona.password)).toBe(true);
   });
 
   it('rejects changing the DNI to one used by another user', async () => {

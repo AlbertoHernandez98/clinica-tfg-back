@@ -2,9 +2,9 @@
 https://docs.nestjs.com/controllers#controllers
 */
 
-import { Controller, Get, Delete, Post, Put, Param, Body } from '@nestjs/common';
+import { Controller, Get, Put, Param, Body, Request, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { MedicoHasServicioEntity } from './medico-has-servicio.entity';
-import { MedicoHasServicioClinica } from './medico-has-servicio.interface';
 import { MedicoHasServicioService } from './medico-has-servicio.service';
 
 
@@ -16,4 +16,10 @@ export class MedicoHasServicioController {
     async getAllMedicoHasServicio(): Promise<MedicoHasServicioEntity[]> {
         return await this.medicoHasServicioService.getAllMedicoHasServicio();
     }  
+
+    @Put(':id')
+    @UseGuards(AuthGuard('jwt'))
+    async replace(@Param('id') id: string, @Body() body: { servicios: unknown }, @Request() req) {
+        return this.medicoHasServicioService.replace(req.user, id, body?.servicios);
+    }
 }

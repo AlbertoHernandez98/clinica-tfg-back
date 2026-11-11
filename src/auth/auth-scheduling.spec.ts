@@ -21,6 +21,7 @@ describe('Scheduling authentication', () => {
     getPersonaById: jest.fn(async id => id === doctor.idPersona ? doctor : null),
     getAllPersonas: jest.fn(async () => [doctor]),
     editarPersona: jest.fn(),
+    migratePassword: jest.fn(async () => true),
   };
   const citas = { list: jest.fn(async () => []) };
 

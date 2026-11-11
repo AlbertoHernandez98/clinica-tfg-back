@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { compareSync } from 'bcrypt';
+import { verifyPassword, isPasswordHash } from './password';
 
 import { PersonaService } from '../persona/persona.service';
 import { PersonaEntity } from '../persona/persona.entity';
@@ -15,15 +15,13 @@ export class AuthService {
     async validateUser(dni: string, password: string): Promise<PersonaEntity | null> {
         const user = await this.personaService.findByDni(dni);
 
-        if (user && this.comparePasswords(password, user.password)) {
+        if (user && await verifyPassword(password, user.password)) {
+            if (!isPasswordHash(user.password) &&
+                !await this.personaService.migratePassword(user.idPersona, user.password)) return null;
             return user;
         }
 
         return null;
-    }
-
-    private comparePasswords(password: string, hashedPassword: string): boolean {
-        return password === hashedPassword;
     }
 
     async login(persona: PersonaEntity) {

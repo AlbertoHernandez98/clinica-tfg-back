@@ -52,9 +52,13 @@ The scheduling and person endpoints require a bearer token from `POST
 /auth/login` (body: `username` containing the DNI and `password`). Users must
 sign in again after deployment. Set `JWT_SECRET` to a long, unpredictable
 secret shared by the backend instances; without it, a random temporary key is
-generated on startup and existing sessions are invalidated on restart. The
-legacy database still stores passwords in plaintext, so this setup is not
-suitable for production without a separate password-hashing migration and HTTPS.
+generated on startup and existing sessions are invalidated on restart.
+Apply `migrations/006-password-hash.sql` after backing up the database and
+before deploying the updated backend. New and changed passwords are hashed
+using bcrypt over a SHA-256 digest; existing plaintext passwords are converted
+only after a successful login. Accounts that have not logged in since this
+change still contain plaintext passwords, and backups may contain them too.
+HTTPS and a broader security review remain necessary before any real use.
 Administrators may manage all roles. Doctors may create and edit patients and
 edit their own profile, but cannot delete users. Receptionists may create,
 edit and delete doctors and patients. Patients cannot administer users and
@@ -65,6 +69,14 @@ holidays do not affect doctors' appointment availability.
 Doctors may modify or delete only their own appointments and cannot reassign
 them to another doctor. Administrators and receptionists can manage all doctors'
 appointments.
+Administrators and receptionists assign services to a doctor with
+`PUT /medico_has_servicio/:id` and `{ "servicios": [1, 2] }`. The existing
+`medico_has_servicio` table stores these assignments. Both appointment creation
+and updates require the selected service to be assigned to the selected doctor.
+Removing an assignment leaves existing appointments unchanged, but they cannot
+be edited until an assigned service is selected. Review and configure existing
+doctors' assignments before deployment; doctors without assignments cannot
+receive new appointments.
 `GET /citas/mi-agenda?inicio=YYYY-MM-DD` returns seven days of appointments
 and holidays for the authenticated doctor only, including appointments that
 overlap the start of the period and a count of appointments without a date.
@@ -98,6 +110,17 @@ doctors, administrators and receptionists may read patient histories; patients
 may read only their own. Doctors and administrators may create notes, with an
 optional appointment link checked against the patient and service. The author
 comes from the authenticated session. Existing notes are retained.
+Before starting this version, back up the database, review and apply
+`migrations/005-historial-versiones-y-anulacion.sql` after migration 004; the
+migration is not applied automatically and the new history queries require it.
+Doctors may edit or annul only notes they authored; administrators may edit or
+annul any note. `PATCH /historialclinico/:id` accepts `comentarios` and `motivo`;
+`POST /historialclinico/:id/anular` accepts `motivo`. Each change requires a
+non-empty reason and stores the previous note, actor and timestamp in the same
+transaction. Annulled notes remain in the history. This functionality is not a
+substitute for a full security or clinical data compliance assessment. Only
+doctors and administrators can read annulled notes and previous versions;
+receptionists and patients receive only current, non-annulled notes.
 
 ```bash
 # development

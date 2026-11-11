@@ -22,7 +22,7 @@ export class PersonaEntity {
     @Column({ type: 'varchar', length: 254, nullable: true })
     email: string | null;
 
-    @Column({ name: 'password', nullable: true })
+    @Column({ name: 'password', nullable: true, length: 255 })
     password: string;
 
     @Column()

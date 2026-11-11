@@ -13,6 +13,7 @@ describe('Clinical history permissions and appointment association', () => {
     query.mockImplementation(async (sql: string) => {
       if (sql.includes('FROM persona')) return [{ idPersona: 4, nombre: 'Patient', apellidos: 'Example' }];
       if (sql.includes('FROM cita')) return [{ idCita: 9, idCliente: 4, idServicio: 1 }];
+      if (sql.includes('FROM historialclinicohistorico')) return [];
       if (sql.includes('FROM historialclinico')) return [{ idHistorialClinico: 1 }];
       if (sql.includes('FROM servicio')) return [{ idServicio: 1 }];
       if (sql.includes('INSERT INTO')) return { insertId: 7 };
@@ -20,14 +21,35 @@ describe('Clinical history permissions and appointment association', () => {
     });
   });
 
-  [1, 2, 3].forEach(role => it(`allows role ${role} to read a patient's records`, async () => {
+  [1, 2].forEach(role => it(`allows role ${role} to read a patient's records and audit history`, async () => {
     const result = await service.patient({ idPersona: 8, idRolNativo: role }, 4);
-    expect(result.entradas).toEqual([{ idHistorialClinico: 1 }]);
+    expect(result.entradas).toEqual([{ idHistorialClinico: 1, anulada: false, versiones: [] }]);
     expect(query).toHaveBeenCalledWith(expect.stringContaining('WHERE h.idCliente = ?'), [4]);
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('FROM historialclinicohistorico'), [4]);
+  }));
+
+  [3, 4].forEach(role => it(`returns only active entries and never queries audit history for role ${role}`, async () => {
+    const activeEntry = { idHistorialClinico: 2, comentarios: 'Current note' };
+    query.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM persona')) return [{ idPersona: 4, nombre: 'Patient', apellidos: 'Example' }];
+      if (sql.includes('FROM historialclinico h')) return [activeEntry];
+      throw new Error(`Unexpected query: ${sql}`);
+    });
+
+    const actor = role === 4 ? { idPersona: 4, idRolNativo: role } : { idPersona: 8, idRolNativo: role };
+    const result = await service.patient(actor, 4);
+
+    expect(result.entradas).toEqual([activeEntry]);
+    expect(Object.keys(result.entradas[0])).not.toContain('anulada');
+    expect(Object.keys(result.entradas[0])).not.toContain('versiones');
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('AND h.anulada = 0'), [4]);
+    expect(query.mock.calls.some(([sql]) => sql.includes('historialclinicohistorico'))).toBe(false);
   }));
 
   it('only lets patients read their own records', async () => {
-    await expect(service.patient({ idPersona: 4, idRolNativo: 4 }, 4)).resolves.toHaveProperty('paciente');
+    const result = await service.patient({ idPersona: 4, idRolNativo: 4 }, 4);
+    expect(result).toHaveProperty('paciente');
+    expect(query.mock.calls.some(([sql]) => sql.includes('historialclinicohistorico'))).toBe(false);
     query.mockClear();
     await expect(service.patient({ idPersona: 4, idRolNativo: 4 }, 5)).rejects.toBeInstanceOf(ForbiddenException);
     expect(query).not.toHaveBeenCalled();

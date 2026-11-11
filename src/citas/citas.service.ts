@@ -230,6 +230,11 @@ export class CitasService {
       if (!await this.available(manager, item, appointmentId)) throw new ConflictException('El médico no está disponible en ese horario');
       const services = await manager.query('SELECT idServicio FROM servicio WHERE idServicio = ?', [item.idServicio]);
       if (!services.length || !patients.length) throw new BadRequestException('Servicio o paciente no válido');
+      const assigned = await manager.query(
+        'SELECT idServicio FROM medico_has_servicio WHERE idPersona = ? AND idServicio = ?',
+        [item.idMedico, item.idServicio],
+      );
+      if (!assigned.length) throw new ConflictException({ code: 'SERVICE_NOT_ASSIGNED', message: 'El servicio no está asignado al médico' });
       if (actor.idRolNativo === 2 && appointmentId === undefined && patients[0].idRolNativo !== 4) {
         throw new BadRequestException('La persona seleccionada no es un paciente');
       }

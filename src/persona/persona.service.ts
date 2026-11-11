@@ -7,6 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PersonaEntity } from './persona.entity';
 import { PersonaClinica } from './persona.interface';
+import { hashExistingPassword, hashPassword, verifyPassword } from '../auth/password';
 
 type Actor = { idPersona: number; idRolNativo: number };
 
@@ -21,6 +22,15 @@ export class PersonaService {
     return this.personaRepository.findOne({ where: { dni } });
   }
 
+  async migratePassword(id: number, previous: string): Promise<boolean> {
+    const hashed = await hashExistingPassword(previous);
+    const result = await this.personaRepository.manager.query(
+      'UPDATE persona SET password = ? WHERE idPersona = ? AND BINARY password = BINARY ?',
+      [hashed, id, previous],
+    );
+    return result.affectedRows === 1;
+  }
+
   async addPersona(persona: PersonaClinica): Promise<any> {
     this.validateEmail(persona.email);
     if (await this.findByDni(persona.dni)) {
@@ -28,7 +38,7 @@ export class PersonaService {
     }
     let newPersona = new PersonaEntity();
     newPersona.dni = persona.dni;
-    newPersona.password = persona.password;
+    newPersona.password = await hashPassword(persona.password);
     newPersona.idRolNativo = persona.idRolNativo;
     newPersona.telefono = persona.telefono;
     newPersona.email = persona.email ? persona.email.trim() : null;
@@ -72,7 +82,7 @@ export class PersonaService {
         }
         persona.dni = dni;
         if (password !== undefined && password !== '') {
-          persona.password = password;
+          persona.password = await hashPassword(password);
         }
         persona.nombre = nombre;
         persona.apellidos = apellidos;
@@ -89,33 +99,17 @@ export class PersonaService {
   }
 
   async cambiarContrasena(requestBody) {
-    try {
-      const { dni, password, newPassword } = requestBody;
-
-      const persona = await this.personaRepository.findOneBy({
-        dni: dni,
-      });
-
-      if (!persona) {
-        throw new Error('No se encontró la persona');
+    if (!requestBody || typeof requestBody !== 'object') throw new BadRequestException('Solicitud inválida');
+    const { dni, password, newPassword } = requestBody;
+    return this.personaRepository.manager.transaction(async manager => {
+      const repo = manager.getRepository(PersonaEntity);
+      const persona = await repo.findOne({ where: { dni }, lock: { mode: 'pessimistic_write' } });
+      if (!persona || !await verifyPassword(password, persona.password)) {
+        throw new ForbiddenException('La contraseña actual es incorrecta');
       }
-
-      const compared = this.comparePasswords(password, persona.password);
-
-      if (compared) {
-        persona.password = newPassword;
-        await this.personaRepository.save(persona);
-      } else {
-        throw new Error('La contraseña actual es incorrecta');
-      }
-      return persona;
-    } catch (error) {
-      throw new Error('Error al cambiar la contraseña de la persona');
-    }
-  }
-
-  private comparePasswords(password: string, hashedPassword: string): boolean {
-    return password === hashedPassword;
+      persona.password = await hashPassword(newPassword);
+      await repo.save(persona);
+    });
   }
 
   private validateEmail(email: unknown): void {

@@ -23,7 +23,7 @@ describe('Patient appointment overlaps', () => {
           begin < existing + 60 * 60000 && begin + duration * 60000 > existing ? [{ idCita: 7 }] : [];
       }
       if (sql.includes('FROM cita') || sql.includes('vacaciones_medico')) return [];
-      if (sql.includes('FROM servicio')) return [{ idServicio: 1 }];
+      if (sql.includes('FROM servicio') || sql.includes('FROM medico_has_servicio')) return [{ idServicio: 1 }];
       if (sql.includes('INSERT INTO cita')) return { insertId: 8 };
       return { affectedRows: 1 };
     });

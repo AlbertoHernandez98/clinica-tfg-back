@@ -18,7 +18,7 @@ describe('Appointment date restrictions', () => {
       if (sql.includes('SELECT idPersona, idRolNativo FROM persona')) return [{ idPersona: 4, idRolNativo: 4 }];
       if (sql.includes('FOR UPDATE')) return [{ idRolNativo: 2 }];
       if (sql.includes('FROM cita') || sql.includes('vacaciones_medico')) return [];
-      if (sql.includes('FROM servicio')) return [{ idServicio: 1 }];
+      if (sql.includes('FROM servicio') || sql.includes('FROM medico_has_servicio')) return [{ idServicio: 1 }];
       if (sql.includes('FROM persona')) return [{ idPersona: 4, idRolNativo: 4 }];
       if (sql.includes('INSERT INTO cita')) return { insertId: 7 };
       return { affectedRows: 1 };

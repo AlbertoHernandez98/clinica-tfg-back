@@ -44,13 +44,8 @@ export class PersonaController {
     @Put('/changePassword')
     async cambiarContrasena(@Body() requestBody, @Request() req) {
         if (requestBody.dni !== req.user.dni) throw new ForbiddenException();
-        const { username, contrasena, newPassword } = requestBody;
-      try {
-        const personaActualizada = await this.personaService.cambiarContrasena(requestBody);
+        await this.personaService.cambiarContrasena(requestBody);
         return { mensaje: 'Contraseña cambiada exitosamente' };
-      } catch (error) {
-        throw new Error(error.message);
-      }
     }
 
     @Delete(':id')
