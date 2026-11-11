@@ -12,7 +12,7 @@ export class CitasService {
   private id(value: unknown): number {
     const n = Number(value);
     if ((typeof value !== 'number' && (typeof value !== 'string' || !/^\d+$/.test(value))) ||
-        !Number.isSafeInteger(n) || n < 0) throw new BadRequestException('Identificador inválido');
+        !Number.isSafeInteger(n) || n < 0 || n > 4294967295) throw new BadRequestException('Identificador inválido');
     return n;
   }
 
@@ -32,7 +32,7 @@ export class CitasService {
   }
 
   private appointment(input: AppointmentInput) {
-    if (!input || typeof input !== 'object') throw new BadRequestException('Cita inválida');
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new BadRequestException('Cita inválida');
     const raw = input.fechaInicio;
     if (typeof raw !== 'string' || !/^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(raw)) {
       throw new BadRequestException('Fecha y hora inválidas');
@@ -182,7 +182,7 @@ export class CitasService {
 
   async slots(actor: Actor, input: { fecha: unknown; idMedico: unknown; duracion: unknown; idCita?: unknown; idCliente?: unknown }) {
     if (![1, 2, 3].includes(actor.idRolNativo)) throw new ForbiddenException();
-    if (!input || typeof input !== 'object') throw new BadRequestException('Solicitud inválida');
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new BadRequestException('Solicitud inválida');
     const date = this.date(input.fecha);
     const doctor = this.id(input.idMedico);
     const id = input.idCita === undefined ? undefined : this.id(input.idCita);
@@ -210,9 +210,9 @@ export class CitasService {
     return result;
   }
 
-  async save(actor: Actor, input: AppointmentInput, appointmentId?: number) {
+  async save(actor: Actor, input: AppointmentInput, appointmentValue?: unknown) {
     if (![1, 2, 3].includes(actor.idRolNativo)) throw new ForbiddenException();
-    if (appointmentId !== undefined) appointmentId = this.id(appointmentId);
+    const appointmentId = appointmentValue === undefined ? undefined : this.id(appointmentValue);
     const item = this.appointment(input);
     if (appointmentId === undefined && item.fecha < clinicToday()) throw new BadRequestException('No se pueden crear citas en días anteriores a hoy');
     if (actor.idRolNativo === 2 && actor.idPersona !== item.idMedico) throw new ForbiddenException();
@@ -253,7 +253,7 @@ export class CitasService {
     });
   }
 
-  async delete(actor: Actor, id: number) {
+  async delete(actor: Actor, id: unknown) {
     if (![1, 2, 3].includes(actor.idRolNativo)) throw new ForbiddenException();
     const appointmentId = this.id(id);
     await this.db.transaction(async manager => {
@@ -262,15 +262,16 @@ export class CitasService {
     });
   }
 
-  async holidays(actor: Actor, doctorValue: number) {
+  async holidays(actor: Actor, doctorValue: unknown) {
     const doctor = this.id(doctorValue);
     this.canManageHoliday(actor, doctor);
     return this.db.query("SELECT idVacacion, idMedico, DATE_FORMAT(fechaInicio, '%Y-%m-%d') AS fechaInicio, DATE_FORMAT(fechaFin, '%Y-%m-%d') AS fechaFin FROM vacaciones_medico WHERE idMedico = ? ORDER BY fechaInicio", [doctor]);
   }
 
-  async addHoliday(actor: Actor, doctorValue: number, body: { fechaInicio: unknown; fechaFin: unknown }) {
+  async addHoliday(actor: Actor, doctorValue: unknown, body: { fechaInicio: unknown; fechaFin: unknown }) {
     const doctor = this.id(doctorValue);
     this.canManageHoliday(actor, doctor);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new BadRequestException('Solicitud inválida');
     const initial = this.date(body.fechaInicio);
     const final = this.date(body.fechaFin);
     if (final < initial) throw new BadRequestException('El fin debe ser posterior al inicio');
@@ -294,7 +295,7 @@ export class CitasService {
     });
   }
 
-  async deleteHoliday(actor: Actor, doctorValue: number, holidayValue: number) {
+  async deleteHoliday(actor: Actor, doctorValue: unknown, holidayValue: unknown) {
     const doctor = this.id(doctorValue);
     const holiday = this.id(holidayValue);
     this.canManageHoliday(actor, doctor);

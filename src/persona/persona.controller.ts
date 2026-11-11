@@ -6,7 +6,7 @@ import { Controller, Get, Delete, Post, Put, Param, Body, Request, UseGuards, Fo
 import { AuthGuard } from '@nestjs/passport';
 import { PersonaEntity } from './persona.entity';
 import { PersonaClinica } from './persona.interface';
-import { PersonaService } from './persona.service';
+import { assertPersonBody, PersonaService } from './persona.service';
 
 @Controller('persona')
 @UseGuards(AuthGuard('jwt'))
@@ -22,6 +22,7 @@ export class PersonaController {
 
     @Post()
     async addPersona(@Body() persona: PersonaClinica, @Request() req): Promise<PersonaEntity> {
+        assertPersonBody(persona);
         const role = req.user.idRolNativo;
         if (!(role === 1 && [1, 2, 3, 4].includes(persona?.idRolNativo)) &&
             !(role === 2 && persona?.idRolNativo === 4) &&
@@ -34,6 +35,7 @@ export class PersonaController {
 
     @Put('/changeUser')
     async editarPersona(@Body() requestBody, @Request() req) {
+        assertPersonBody(requestBody);
         if (req.user.idRolNativo !== 1 && req.user.dni === requestBody.oldDni &&
             (req.user.idRolNativo !== Number(requestBody.idRolNativo) || requestBody.password)) {
             throw new ForbiddenException();
@@ -43,6 +45,7 @@ export class PersonaController {
 
     @Put('/changePassword')
     async cambiarContrasena(@Body() requestBody, @Request() req) {
+        assertPersonBody(requestBody);
         if (requestBody.dni !== req.user.dni) throw new ForbiddenException();
         await this.personaService.cambiarContrasena(requestBody);
         return { mensaje: 'Contraseña cambiada exitosamente' };

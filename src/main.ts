@@ -2,11 +2,13 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
+import helmet from 'helmet';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const expressApp = app.getHttpAdapter().getInstance();
   const multer = require('multer');
+  app.use(helmet());
 
 
   // Middleware para habilitar CORS
@@ -14,8 +16,10 @@ async function bootstrap() {
     // Configura los encabezados CORS necesarios
     const origin = req.headers.origin;
     // Permite cualquier localhost en desarrollo
-    if (origin && origin.includes('localhost')) {
+    if (origin && origin === (process.env.FRONTEND_ORIGIN || 'http://localhost:4200')) {
       res.header('Access-Control-Allow-Origin', origin);
+      res.header('Access-Control-Allow-Credentials', 'true');
+      res.header('Vary', 'Origin');
     }
     res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');

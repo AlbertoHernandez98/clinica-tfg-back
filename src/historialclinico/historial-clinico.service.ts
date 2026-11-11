@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import { AuditoriaHistorialService } from './auditoria-historial.service';
 
 type Actor = { idPersona: number; idRolNativo: number };
 type Input = { idCliente: unknown; idServicio: unknown; idCita?: unknown; comentarios: unknown };
@@ -13,11 +14,11 @@ type OperationInput = { comentarios?: unknown; motivo: unknown };
 
 @Injectable()
 export class HistorialClinicoService {
-  constructor(private readonly db: DataSource) {}
+  constructor(private readonly db: DataSource, private readonly audit: AuditoriaHistorialService) {}
 
   private id(value: unknown): number {
     if ((typeof value !== 'number' && (typeof value !== 'string' || !/^\d+$/.test(value))) ||
-        !Number.isSafeInteger(Number(value)) || Number(value) < 1) {
+        !Number.isSafeInteger(Number(value)) || Number(value) < 1 || Number(value) > 4294967295) {
       throw new BadRequestException('Identificador inválido');
     }
     return Number(value);
@@ -56,6 +57,7 @@ export class HistorialClinicoService {
       history.push(version);
       versionsByEntry.set(id, history);
     });
+    await this.audit.record(this.db, actor, 'CONSULTA', 'PERMITIDO', patient, null);
     return {
       paciente: people[0],
       entradas: canReadAudit
@@ -75,19 +77,17 @@ export class HistorialClinicoService {
       'SELECT idCita, idCliente, idServicio FROM cita WHERE idCita = ?', [appointment],
     );
     if (!rows.length) throw new NotFoundException('Cita no encontrada');
+    await this.audit.record(this.db, actor, 'CONSULTA', 'PERMITIDO', rows[0].idCliente, null);
     return rows[0];
   }
 
   async add(actor: Actor, input: Input) {
     if (![1, 2].includes(actor.idRolNativo)) throw new ForbiddenException();
-    if (!input || typeof input !== 'object') throw new BadRequestException('Solicitud inválida');
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new BadRequestException('Solicitud inválida');
     const patient = this.id(input.idCliente);
     const service = this.id(input.idServicio);
     const appointment = input.idCita === undefined ? undefined : this.id(input.idCita);
-    if (typeof input.comentarios !== 'string' || !input.comentarios.trim() || input.comentarios.length > 10000) {
-      throw new BadRequestException('Comentarios inválidos');
-    }
-    const comments = input.comentarios.trim();
+    const comments = this.comments(input.comentarios);
     return this.db.transaction(async manager => {
       const people = await manager.query('SELECT idPersona FROM persona WHERE idPersona = ? AND idRolNativo = 4', [patient]);
       if (!people.length) throw new NotFoundException('Paciente no encontrado');
@@ -106,6 +106,7 @@ export class HistorialClinicoService {
          VALUES (?, DATE_FORMAT(CURRENT_DATE(), '%Y-%m-%d'), TIME_FORMAT(CURRENT_TIME(), '%H:%i:%s'), ?, ?, ?, ?)`,
         [comments, patient, this.id(actor.idPersona), service, appointment === undefined ? null : appointment],
       );
+      await this.audit.record(manager, actor, 'ALTA', 'PERMITIDO', patient, result.insertId);
       return { idHistorialClinico: result.insertId };
     });
   }
@@ -113,7 +114,7 @@ export class HistorialClinicoService {
   async edit(actor: Actor, entryValue: unknown, input: OperationInput) {
     if (![1, 2].includes(actor.idRolNativo)) throw new ForbiddenException();
     const entryId = this.id(entryValue);
-    if (!input || typeof input !== 'object') throw new BadRequestException('Solicitud inválida');
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new BadRequestException('Solicitud inválida');
     const comments = this.comments(input.comentarios);
     const reason = this.reason(input.motivo);
 
@@ -132,6 +133,7 @@ export class HistorialClinicoService {
         'UPDATE historialclinico SET comentarios = ? WHERE idHistorialClinico = ?',
         [comments, entryId],
       );
+      await this.audit.record(manager, actor, 'EDICION', 'PERMITIDO', entry.idCliente, entryId);
       return { idHistorialClinico: entryId };
     });
   }
@@ -139,7 +141,7 @@ export class HistorialClinicoService {
   async annul(actor: Actor, entryValue: unknown, input: { motivo: unknown }) {
     if (![1, 2].includes(actor.idRolNativo)) throw new ForbiddenException();
     const entryId = this.id(entryValue);
-    if (!input || typeof input !== 'object') throw new BadRequestException('Solicitud inválida');
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new BadRequestException('Solicitud inválida');
     const reason = this.reason(input.motivo);
 
     return this.db.transaction(async manager => {
@@ -157,6 +159,7 @@ export class HistorialClinicoService {
         'UPDATE historialclinico SET anulada = 1 WHERE idHistorialClinico = ?',
         [entryId],
       );
+      await this.audit.record(manager, actor, 'ANULACION', 'PERMITIDO', entry.idCliente, entryId);
       return { idHistorialClinico: entryId, anulada: true };
     });
   }

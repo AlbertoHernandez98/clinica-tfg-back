@@ -47,18 +47,73 @@ appointments retain their dates and times, but their duration is unknown and
 must be filled in manually; until then, new appointments for the affected
 doctor are conservatively blocked. The migration removes the unique service
 index so multiple appointments may use the same service.
+Appointment, availability and holiday inputs validate identifiers as decimal
+unsigned 32-bit integers, including legacy zero; malformed route parameters and
+invalid request bodies are rejected with HTTP 400 before database changes.
+Existing date, duration and role rules continue to apply.
+
+Doctor-service assignment updates accept only lists of distinct unsigned
+32-bit service identifiers. The doctor identifier has the same range, including
+zero for legacy records. Invalid lists are rejected before assignments are
+changed; only administrators and receptionists can replace assignments.
 
 The scheduling and person endpoints require a bearer token from `POST
 /auth/login` (body: `username` containing the DNI and `password`). Users must
 sign in again after deployment. Set `JWT_SECRET` to a long, unpredictable
 secret shared by the backend instances; without it, a random temporary key is
 generated on startup and existing sessions are invalidated on restart.
+Apply `migrations/007-refresh-sessions.sql`, `migrations/009-rotacion-refresh.sql`
+and `migrations/010-refresh-margen.sql` before deploying this version.
+Migration 009 keeps existing refresh sessions.
+Access tokens last 15 minutes; the opaque, server-revocable refresh token
+expires after seven days and is stored in an HttpOnly, SameSite=Strict cookie.
+Only its SHA-256 hash is stored in the database. Logging out revokes the refresh
+session; previously issued access tokens remain usable until they expire.
+Changing a password revokes that user's refresh sessions in the same
+transaction, but already issued access tokens still expire normally.
+The Angular client keeps the access token only in memory and requests a new one
+using the refresh cookie when the application starts. A legacy access token in
+sessionStorage is removed at startup. This reduces persistence of a stolen
+token but does not prevent a running XSS from accessing it or performing actions.
+Refresh and logout require the exact configured `FRONTEND_ORIGIN` (defaults to
+`http://localhost:4200`). In production set that origin to HTTPS and set
+`NODE_ENV=production` so the cookie is marked Secure. This configuration is
+for same-site deployment; a cross-site frontend requires a separate CSRF and
+cookie design review. A refresh rotates the token without extending the original
+expiration. For five seconds, its immediate predecessor can recover the same
+successor, without another rotation, if that successor is still current.
+The successor is derived by domain-separated HMAC-SHA-256 from the predecessor
+and `JWT_SECRET`, so no plaintext refresh token is stored. The secret must remain
+stable across restarts and instances: changing it prevents recovery of an already
+rotated token. A stolen predecessor can also recover its successor during those
+five seconds; this is a deliberate security/availability trade-off. Reuse after
+the window or of an older predecessor revokes the family. Tokens rotated before
+this update cannot be recovered with the new method. Token hashes are retained for reuse detection;
+there is currently no automatic cleanup of expired session records. Concurrent
+browser tabs coordinate refresh and logout using Web Locks where supported.
+Browser requests without Web Locks or a lost response may still require a new
+login if the retry arrives after five seconds, after another rotation, or after
+a change of secret. The frontend retries once immediately after a network error,
+but a delayed error or another failed attempt can still exceed the window.
 Apply `migrations/006-password-hash.sql` after backing up the database and
 before deploying the updated backend. New and changed passwords are hashed
 using bcrypt over a SHA-256 digest; existing plaintext passwords are converted
 only after a successful login. Accounts that have not logged in since this
 change still contain plaintext passwords, and backups may contain them too.
 HTTPS and a broader security review remain necessary before any real use.
+Login rejects malformed payloads and limits failures to five per account and
+per client IP in a rolling 15-minute window; in-flight attempts count until they
+finish. The limiter is stored in this server process and resets on restart;
+it is not shared across instances. Do not rely on it for a public or multi-node
+deployment: use shared rate limiting and configure trusted proxy addresses
+explicitly. Helmet supplies standard HTTP security headers.
+
+User creation and updates validate request shape, role, document length, name
+and surname length, email, and phone range before writing to the database.
+Legacy document formats are accepted (this is not DNI/NIE checksum validation).
+Phone numbers are stored as signed integers, so only numeric values up to
+2147483647 are supported and leading zeroes cannot be preserved. Other
+endpoints still require a systematic input-validation review.
 Administrators may manage all roles. Doctors may create and edit patients and
 edit their own profile, but cannot delete users. Receptionists may create,
 edit and delete doctors and patients. Patients cannot administer users and
@@ -110,6 +165,10 @@ doctors, administrators and receptionists may read patient histories; patients
 may read only their own. Doctors and administrators may create notes, with an
 optional appointment link checked against the patient and service. The author
 comes from the authenticated session. Existing notes are retained.
+Clinical history identifiers are validated as integers between 1 and
+4294967295. Note bodies must be objects, with non-blank comments up to 10000
+characters; edits and annulments require a non-blank reason up to 1000
+characters. Invalid inputs return HTTP 400 before the mutation transaction.
 Before starting this version, back up the database, review and apply
 `migrations/005-historial-versiones-y-anulacion.sql` after migration 004; the
 migration is not applied automatically and the new history queries require it.
@@ -121,6 +180,19 @@ transaction. Annulled notes remain in the history. This functionality is not a
 substitute for a full security or clinical data compliance assessment. Only
 doctors and administrators can read annulled notes and previous versions;
 receptionists and patients receive only current, non-annulled notes.
+
+Apply `migrations/008-auditoria-historial.sql` before deploying this version.
+Authenticated successful reads and changes, and requests denied by role or
+ownership, are recorded in `auditoria_historial` with UTC time, actor, role,
+operation, result and available patient or note IDs, but not clinical text.
+Successful mutations and their audit records are committed in the same
+transaction; an audit failure prevents the mutation. Unauthenticated requests,
+invalid input and other errors are not captured by this audit. No automatic
+retention or deletion is configured. Administrators can retrieve up to 100
+events via `GET /historialclinico/auditoria`, and use the returned `siguiente`
+as `?antes=...` for the next page. Administrators may also open the audit
+viewer from the frontend header. Protect
+database access and backups; this audit alone does not establish compliance.
 
 ```bash
 # development

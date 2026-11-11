@@ -5,13 +5,14 @@ import { PersonaService } from './persona.service';
 import { verifyPassword } from '../auth/password';
 
 describe('PersonaService', () => {
+  const query = jest.fn();
   const repository = { find: jest.fn(), findOne: jest.fn(), findOneBy: jest.fn(), save: jest.fn(), delete: jest.fn(), manager: { transaction: jest.fn() } };
   const admin = { idPersona: 1, idRolNativo: 1 };
   let service: PersonaService;
 
   beforeEach(() => {
     jest.resetAllMocks();
-    repository.manager.transaction.mockImplementation(async work => work({ getRepository: () => repository }));
+    repository.manager.transaction.mockImplementation(async work => work({ getRepository: () => repository, query }));
     service = new PersonaService(repository as unknown as Repository<PersonaEntity>);
   });
 
@@ -52,6 +53,7 @@ describe('PersonaService', () => {
     await service.editarPersona({ oldDni: 'T', dni: 'T', idRolNativo: 4, password: 'new-password' }, admin);
     expect(await verifyPassword('new-password', persona.password)).toBe(true);
     expect(persona.password).not.toBe('new-password');
+    expect(query).toHaveBeenCalledWith('DELETE FROM auth_refresh_session WHERE idPersona = ?', [4]);
   });
 
   it('checks the old password and hashes a self-service password change', async () => {
@@ -62,6 +64,7 @@ describe('PersonaService', () => {
     expect(repository.save).not.toHaveBeenCalled();
     await service.cambiarContrasena({ dni: 'T', password: 'legacy', newPassword: 'new-password' });
     expect(await verifyPassword('new-password', persona.password)).toBe(true);
+    expect(query).toHaveBeenCalledWith('DELETE FROM auth_refresh_session WHERE idPersona = ?', [4]);
   });
 
   it('rejects changing the DNI to one used by another user', async () => {
@@ -83,6 +86,48 @@ describe('PersonaService', () => {
       dni: '12345678A', nombre: 'Ana', apellidos: 'Pérez',
       password: 'pass', telefono: 612345678, idRolNativo: 4, email: 'invalid'
     })).rejects.toBeInstanceOf(BadRequestException);
+    expect(repository.save).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['missing document', { dni: undefined }],
+    ['oversized document', { dni: 'A'.repeat(10) }],
+    ['object document', { dni: { nested: 'T' } }],
+    ['blank name', { nombre: '  ' }],
+    ['oversized name', { nombre: 'a'.repeat(33) }],
+    ['oversized surname', { apellidos: 'a'.repeat(46) }],
+    ['control characters', { nombre: 'Ana\nB' }],
+    ['negative phone', { telefono: -1 }],
+    ['fractional phone', { telefono: 1.5 }],
+    ['oversized phone', { telefono: '2147483648' }],
+    ['invalid phone type', { telefono: [1] }],
+    ['noncanonical role', { idRolNativo: '4.0' }],
+  ])('rejects %s before touching the database', async (_label, changes) => {
+    const body = { oldDni: 'T', dni: 'T', nombre: 'Ana', apellidos: 'Pérez', telefono: '12345', idRolNativo: 4, ...changes };
+    await expect(service.editarPersona(body, admin)).rejects.toBeInstanceOf(BadRequestException);
+    expect(repository.manager.transaction).not.toHaveBeenCalled();
+  });
+
+  it('accepts a legacy short phone and the database maximum, preserving omitted fields', async () => {
+    const persona = { idPersona: 4, idRolNativo: 4, dni: 'T', nombre: 'Ana', apellidos: 'Pérez', telefono: 12345 };
+    repository.findOne.mockResolvedValue(persona);
+    await service.editarPersona({ oldDni: 'T', dni: 'T', idRolNativo: 4, telefono: '2147483647' }, admin);
+    expect(persona.telefono).toBe(2147483647);
+    expect(persona.nombre).toBe('Ana');
+    expect(persona.apellidos).toBe('Pérez');
+    await service.editarPersona({ oldDni: 'T', dni: 'T', idRolNativo: 4, telefono: '12345' }, admin);
+    expect(persona.telefono).toBe(12345);
+  });
+
+  it.each([
+    ['missing name', { nombre: undefined }],
+    ['object surname', { apellidos: { value: 'Pérez' } }],
+    ['oversized phone', { telefono: '99999999999' }],
+    ['oversized photo', { fotoPerfil: 'a'.repeat(251) }],
+  ])('rejects invalid creation: %s', async (_label, changes) => {
+    const body = { dni: 'T', nombre: 'Ana', apellidos: 'Pérez', password: 'pass', idRolNativo: 4, telefono: 1, ...changes };
+    await expect(Reflect.apply(service.addPersona, service, [body])).rejects.toBeInstanceOf(BadRequestException);
+    expect(repository.findOne).not.toHaveBeenCalled();
     expect(repository.save).not.toHaveBeenCalled();
   });
 

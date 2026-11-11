@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { HistorialClinicoService } from './historial-clinico.service';
+import { AuditoriaHistorialService } from './auditoria-historial.service';
 
 describe('Clinical history edit and annul operations', () => {
   const entry = {
@@ -26,7 +27,10 @@ describe('Clinical history edit and annul operations', () => {
       throw new Error(`Unexpected query: ${sql}`);
     });
     transaction = jest.fn(async work => work({ query: transactionQuery }));
-    service = new HistorialClinicoService({ transaction } as unknown as DataSource);
+    service = new HistorialClinicoService(
+      { transaction } as unknown as DataSource,
+      { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditoriaHistorialService,
+    );
   });
 
   it('records the previous note, reason, actor and operation timestamp before editing', async () => {

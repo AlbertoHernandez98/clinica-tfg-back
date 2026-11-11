@@ -1,6 +1,4 @@
 import { ServiciosController } from './servicios/servicios.controller';
-import { PhotosModule } from './photos/photos.module';
-import { PhotosService } from './photos/photos.service';
 import { PersonaModule } from './persona/persona.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -18,7 +16,6 @@ import { MedicoHasServicioModule } from './medico-has-servicio/medico-has-servic
 
 @Module({
   imports: [
-    PhotosModule,
     PersonaModule,
     TypeOrmModule.forRoot({
       type: 'mariadb',

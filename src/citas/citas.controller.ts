@@ -31,19 +31,19 @@ export class CitasController {
   slots(@Request() req, @Body() body) { return this.citas.slots(req.user, body); }
 
   @Put('citas/:id')
-  update(@Request() req, @Param('id') id: string, @Body() body) { return this.citas.save(req.user, body, Number(id)); }
+  update(@Request() req, @Param('id') id: string, @Body() body) { return this.citas.save(req.user, body, id); }
 
   @Delete('citas/:id')
-  delete(@Request() req, @Param('id') id: string) { return this.citas.delete(req.user, Number(id)); }
+  delete(@Request() req, @Param('id') id: string) { return this.citas.delete(req.user, id); }
 
   @Get('medicos/:id/vacaciones')
-  holidays(@Request() req, @Param('id') id: string) { return this.citas.holidays(req.user, Number(id)); }
+  holidays(@Request() req, @Param('id') id: string) { return this.citas.holidays(req.user, id); }
 
   @Post('medicos/:id/vacaciones')
-  addHoliday(@Request() req, @Param('id') id: string, @Body() body) { return this.citas.addHoliday(req.user, Number(id), body); }
+  addHoliday(@Request() req, @Param('id') id: string, @Body() body) { return this.citas.addHoliday(req.user, id, body); }
 
   @Delete('medicos/:id/vacaciones/:holidayId')
   deleteHoliday(@Request() req, @Param('id') id: string, @Param('holidayId') holiday: string) {
-    return this.citas.deleteHoliday(req.user, Number(id), Number(holiday));
+    return this.citas.deleteHoliday(req.user, id, holiday);
   }
 }

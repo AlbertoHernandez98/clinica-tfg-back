@@ -8,6 +8,9 @@ import { JwtStrategy } from './jwt.strategy';
 import { LocalStrategy } from './local.strategy';
 import { jwtConstants } from './constants';
 import { PersonaModule } from 'src/persona/persona.module';
+import { LoginGuard } from './login.guard';
+import { LoginLimiter } from './login-limiter';
+import { RefreshSessionService } from './refresh-session.service';
 
 @Module({
   imports: [
@@ -15,12 +18,12 @@ import { PersonaModule } from 'src/persona/persona.module';
     PassportModule,
     JwtModule.register({
       secret: jwtConstants.secret,
-      signOptions: { expiresIn: '1h' },
+      signOptions: { expiresIn: '15m' },
     }),
     PersonaModule, // Importa el módulo de usuario si es necesario
   ],
   controllers: [AuthController],
-  providers: [AuthService, LocalStrategy, JwtStrategy],
+  providers: [AuthService, LocalStrategy, JwtStrategy, LoginGuard, LoginLimiter, RefreshSessionService],
   exports: [AuthService], // Exporta el servicio de autenticación si es necesario
 })
 export class AuthModule {}

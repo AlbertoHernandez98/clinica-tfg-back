@@ -51,6 +51,36 @@ describe('Doctor service assignments', () => {
     expect(query.mock.calls.some(([sql]) => sql.includes('DELETE'))).toBe(false);
   });
 
+  it.each([
+    [-1], [1.5], [true], [null], [''], ['1e2'], ['-1'], ['4294967296'], [4294967296],
+  ])('rejects invalid doctor identifier %p before a transaction', async id => {
+    await expect(assignments.replace({ idRolNativo: 1 }, id, [])).rejects.toBeInstanceOf(BadRequestException);
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [-1], [1.5], [false], [null], [''], ['1e2'], ['4294967296'], [4294967296],
+  ])('rejects invalid service identifier %p before a transaction', async id => {
+    await expect(assignments.replace({ idRolNativo: 3 }, 2, [id])).rejects.toBeInstanceOf(BadRequestException);
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it.each([null, {}, '1', 42])('rejects a non-array service list %p', async values => {
+    await expect(assignments.replace({ idRolNativo: 1 }, 2, values)).rejects.toBeInstanceOf(BadRequestException);
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects equivalent numeric and string identifiers as duplicates', async () => {
+    await expect(assignments.replace({ idRolNativo: 1 }, 2, [1, '01'])).rejects.toBeInstanceOf(BadRequestException);
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it('accepts the unsigned database limit without numeric truncation', async () => {
+    await expect(assignments.replace({ idRolNativo: 1 }, '4294967295', ['4294967295']))
+      .resolves.toEqual({ idPersona: 4294967295, servicios: [4294967295] });
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO medico_has_servicio'), [4294967295, 4294967295]);
+  });
+
   it('rejects a person who is not a doctor', async () => {
     query.mockResolvedValueOnce([{ idRolNativo: 4 }]);
     await expect(assignments.replace({ idRolNativo: 1 }, 2, [])).rejects.toBeInstanceOf(NotFoundException);

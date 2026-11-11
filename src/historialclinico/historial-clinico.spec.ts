@@ -1,11 +1,14 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { HistorialClinicoService } from './historial-clinico.service';
+import { AuditoriaHistorialService } from './auditoria-historial.service';
 
 describe('Clinical history permissions and appointment association', () => {
   const query = jest.fn();
   const transaction = jest.fn(async work => work({ query }));
-  const service = new HistorialClinicoService({ query, transaction } as unknown as DataSource);
+  const db = { query, transaction } as unknown as DataSource;
+  const audit = { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditoriaHistorialService;
+  const service = new HistorialClinicoService(db, audit);
   const body = { idCliente: 4, idServicio: 1, idCita: 9, comentarios: 'Clinical note' };
 
   beforeEach(() => {

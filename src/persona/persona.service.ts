@@ -11,6 +11,12 @@ import { hashExistingPassword, hashPassword, verifyPassword } from '../auth/pass
 
 type Actor = { idPersona: number; idRolNativo: number };
 
+export function assertPersonBody(value: unknown): asserts value is Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new BadRequestException('Solicitud inválida');
+  }
+}
+
 @Injectable()
 export class PersonaService {
   constructor(
@@ -32,6 +38,8 @@ export class PersonaService {
   }
 
   async addPersona(persona: PersonaClinica): Promise<any> {
+    assertPersonBody(persona);
+    this.validatePerson(persona, true);
     this.validateEmail(persona.email);
     if (await this.findByDni(persona.dni)) {
       throw new ConflictException('Ya existe una persona con ese documento');
@@ -40,7 +48,8 @@ export class PersonaService {
     newPersona.dni = persona.dni;
     newPersona.password = await hashPassword(persona.password);
     newPersona.idRolNativo = persona.idRolNativo;
-    newPersona.telefono = persona.telefono;
+    const phone: unknown = persona.telefono;
+    newPersona.telefono = phone === undefined || phone === null || phone === '' ? null : Number(phone);
     newPersona.email = persona.email ? persona.email.trim() : null;
     newPersona.nombre = persona.nombre;
     newPersona.apellidos = persona.apellidos;
@@ -62,7 +71,10 @@ export class PersonaService {
   }
 
   async editarPersona(requestBody, actor: Actor) {
+    assertPersonBody(requestBody);
+    this.validatePerson(requestBody, false);
     const { oldDni, dni, password, nombre, apellidos, idRolNativo, telefono, email } = requestBody;
+    if (typeof oldDni !== 'string' || typeof dni !== 'string') throw new BadRequestException('Documento inválido');
     this.validateEmail(email);
     const newRole = Number(idRolNativo);
     if (![1, 2, 3, 4].includes(newRole)) throw new BadRequestException('Rol inválido');
@@ -83,13 +95,14 @@ export class PersonaService {
         persona.dni = dni;
         if (password !== undefined && password !== '') {
           persona.password = await hashPassword(password);
+          await manager.query('DELETE FROM auth_refresh_session WHERE idPersona = ?', [persona.idPersona]);
         }
-        persona.nombre = nombre;
-        persona.apellidos = apellidos;
+        if (typeof nombre === 'string') persona.nombre = nombre;
+        if (typeof apellidos === 'string') persona.apellidos = apellidos;
         persona.idRolNativo = newRole;
-        persona.telefono = telefono;
+        if (telefono !== undefined) persona.telefono = telefono === null || telefono === '' ? null : Number(telefono);
         if (email !== undefined) {
-          persona.email = email ? email.trim() : null;
+          persona.email = typeof email === 'string' && email ? email.trim() : null;
         }
         await repo.save(persona);
       } else {
@@ -99,8 +112,9 @@ export class PersonaService {
   }
 
   async cambiarContrasena(requestBody) {
-    if (!requestBody || typeof requestBody !== 'object') throw new BadRequestException('Solicitud inválida');
+    assertPersonBody(requestBody);
     const { dni, password, newPassword } = requestBody;
+    if (typeof dni !== 'string' || !dni || dni.length > 9) throw new BadRequestException('Documento inválido');
     return this.personaRepository.manager.transaction(async manager => {
       const repo = manager.getRepository(PersonaEntity);
       const persona = await repo.findOne({ where: { dni }, lock: { mode: 'pessimistic_write' } });
@@ -108,6 +122,7 @@ export class PersonaService {
         throw new ForbiddenException('La contraseña actual es incorrecta');
       }
       persona.password = await hashPassword(newPassword);
+      await manager.query('DELETE FROM auth_refresh_session WHERE idPersona = ?', [persona.idPersona]);
       await repo.save(persona);
     });
   }
@@ -119,6 +134,35 @@ export class PersonaService {
     if (typeof email !== 'string' || email.trim().length > 254 ||
         !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       throw new BadRequestException('El correo electrónico no es válido');
+    }
+  }
+
+  private validatePerson(input: Record<string, unknown>, creating: boolean): void {
+    const text = (value: unknown, name: string, max: number, required: boolean) => {
+      if (value === undefined && !required) return;
+      if (typeof value !== 'string' || value.length > max || !value.trim() || /[\u0000-\u001f\u007f]/.test(value)) {
+        throw new BadRequestException(`${name} inválido`);
+      }
+    };
+    text(input.dni, 'Documento', 9, true);
+    if (!creating) text(input.oldDni, 'Documento anterior', 9, true);
+    text(input.nombre, 'Nombre', 32, creating);
+    text(input.apellidos, 'Apellidos', 45, creating);
+    const phone = input.telefono;
+    if (phone !== undefined && phone !== null && phone !== '') {
+      if (!((typeof phone === 'string' && /^\d{1,10}$/.test(phone)) ||
+            (typeof phone === 'number' && Number.isSafeInteger(phone))) ||
+          Number(phone) < 0 || Number(phone) > 2147483647) {
+        throw new BadRequestException('Teléfono inválido');
+      }
+    }
+    if (creating && input.fotoPerfil !== undefined && input.fotoPerfil !== null &&
+        (typeof input.fotoPerfil !== 'string' || input.fotoPerfil.length > 250)) {
+      throw new BadRequestException('Foto de perfil inválida');
+    }
+    if (input.idRolNativo !== 1 && input.idRolNativo !== 2 && input.idRolNativo !== 3 && input.idRolNativo !== 4 &&
+        input.idRolNativo !== '1' && input.idRolNativo !== '2' && input.idRolNativo !== '3' && input.idRolNativo !== '4') {
+      throw new BadRequestException('Rol inválido');
     }
   }
 

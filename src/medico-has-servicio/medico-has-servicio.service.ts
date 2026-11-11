@@ -25,7 +25,9 @@ export class MedicoHasServicioService {
     if (![1, 3].includes(actor.idRolNativo)) throw new ForbiddenException();
     const parseId = (value: unknown) => {
       if ((typeof value !== 'number' && (typeof value !== 'string' || !/^\d+$/.test(value))) ||
-          !Number.isSafeInteger(Number(value)) || Number(value) < 0) throw new BadRequestException('Identificador inválido');
+          !Number.isSafeInteger(Number(value)) || Number(value) < 0 || Number(value) > 4294967295) {
+        throw new BadRequestException('Identificador inválido');
+      }
       return Number(value);
     };
     const doctor = parseId(doctorValue);
